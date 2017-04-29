@@ -18,6 +18,9 @@ def get_word_from_sogou_cell_dict(fname):
     f = open(fname, 'rb')
     file_size = os.path.getsize(fname)
 
+    if(0 == file_size):
+        return
+
     hz_offset = 0
     mask = struct.unpack('B', f.read(128)[4])[0]
     if mask == 0x44:
@@ -42,6 +45,7 @@ def get_word_from_sogou_cell_dict(fname):
 
         if py_code not in py_map:
             py_map[py_code] = py_str
+            print py_code, py_str
 
         if py_str == 'zuo':
             break
@@ -69,8 +73,14 @@ def get_word_from_sogou_cell_dict(fname):
 def showtxt(records):
     for (pystr, utf8str) in records:
         # print len(utf8str), utf8str
-        print utf8str.encode('utf8')
+        print pystr,utf8str.encode('utf8')
 
+
+def writefile(records, fname):
+    import codecs
+    with codecs.open(fname, 'w', 'utf-8') as fw:
+        for (pystr, utf8str) in records:
+            fw.write(utf8str+'\n')
 
 def main():
     if len(sys.argv) != 2:
