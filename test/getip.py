@@ -9,4 +9,4 @@ def get_ip():
         return addr
     except socket.error:
         return "127.0.0.1"
-print get_ip()
+print(get_ip())

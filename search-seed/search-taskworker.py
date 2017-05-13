@@ -31,10 +31,6 @@ task = m.get_task_queue()
 result = m.get_result_queue()
 # 从task队列取任务,并把结果写入result队列:
 
-base_url = "http://baike.baidu.com/item/"
-result_file = 'html'
-
-
 def get_ip():
     import socket
     try:
@@ -46,49 +42,47 @@ def get_ip():
     except socket.error:
         return "127.0.0.1"
 
-
+base_url = "http://baike.baidu.com"
 workerip = get_ip()
-result_file = "html%s.txt" % workerip
-tag_file = "tag%s.txt" % workerip
+
+search_url = base_url + '/search?word='
+item_url = base_url + '/item'
+
+seed_file = "seed%s.txt" % workerip
 log_file = "log%s.txt" % workerip
-fw = codecs.open(result_file, 'a', 'utf-8')
-tag_fw = codecs.open(tag_file, 'a', 'utf-8')
+seed_fw = codecs.open(seed_file, 'a', 'utf-8')
 log_fw = codecs.open(log_file, 'a', 'utf-8')
 
 while True:
     try:
         uword = task.get(timeout=1)
         print('run task word=%s...' % uword)
-        url = base_url + quote(uword.encode('utf-8'))
+        url = search_url + quote(uword.encode('utf-8'))
 
         response = requests.get(url)
         res_text = response.text.encode(response.encoding)
-        fw.write(uword + '\x01')
-        fw.write(res_text.decode('utf-8').replace('\r', '').replace('\n', ''))
-        fw.write('\n')
 
         content = BeautifulSoup(res_text, 'lxml')
         relate_words = []
         for a in content.find_all('a'):
             if 'href' in a.attrs:
                 href = a.attrs['href']
-                if href.startswith('/item') and not href.endswith('fr=navbar') and not href.endswith('force=1'):
-                    word = unquote(href.replace('/item/', '').replace('#viewPageContent', ''))
+                if href.startswith(item_url):
+                    word = unquote(href.replace(item_url+'/', ''))
+                    relate_words.append(word)
+                elif href.startswith('/item'):
+                    word = unquote(href.replace('/item/', ''))
                     relate_words.append(word)
         print(len(relate_words))
 
-        taglist = []
-        for tag in content.select('span[class="taglist"]'):
-            for ele in tag.stripped_strings:
-                taglist.append(ele)
+        seed_fw.write(uword + '\t')
+        seed_fw.write(','.join(relate_words))
+        seed_fw.write('\n')
+        seed_fw.flush()
 
-        tag_fw.write(uword + '\t')
-        tag_fw.write(','.join(taglist))
-        tag_fw.write('\n')
-        tag_fw.flush()
-
-        for w in relate_words:
-            result.put(w)
+        for rword in relate_words:
+            rword = rword.split('/')[0]
+            result.put(rword)
 
     except queue.Empty:
         print('task queue is empty.')
