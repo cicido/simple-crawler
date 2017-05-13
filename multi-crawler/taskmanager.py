@@ -2,13 +2,13 @@
 
 # taskmanager.py
 
-import random, time, Queue,codecs
+import random, time, queue,codecs
 from multiprocessing.managers import BaseManager
 
 # 发送任务的队列:
-task_queue = Queue.Queue()
+task_queue = queue.Queue()
 # 接收结果的队列:
-result_queue = Queue.Queue()
+result_queue = queue.Queue()
 
 # 从BaseManager继承的QueueManager:
 class QueueManager(BaseManager):
@@ -18,7 +18,7 @@ class QueueManager(BaseManager):
 QueueManager.register('get_task_queue', callable=lambda: task_queue)
 QueueManager.register('get_result_queue', callable=lambda: result_queue)
 # 绑定端口5000, 设置验证码'abc':
-manager = QueueManager(address=('', 5000), authkey='abc')
+manager = QueueManager(address=('', 5000), authkey='abc'.encode('utf-8'))
 # 启动Queue:
 manager.start()
 # 获得通过网络访问的Queue对象:
@@ -46,12 +46,11 @@ finished_set.update(unfinished_set)
 while True:
     try:
         r = result.get(timeout=10)
-        print(type(r))
         print('new word: %s' % r)
         if r not in finished_set:
             task.put(r)
             finished_set.add(r)
-    except Queue.Empty:
+    except queue.Empty:
         print('Queue is empty')
         time.sleep(10)
 # 关闭:
