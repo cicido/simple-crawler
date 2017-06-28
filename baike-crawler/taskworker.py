@@ -1,14 +1,13 @@
 # -*- coding:utf-8 -*-
-# taskworker.py
 
-import time, sys, queue
+import time, sys, queue,os
 from multiprocessing.managers import BaseManager
 from bs4 import BeautifulSoup
 import requests, re
 import codecs
 from urllib.parse import quote, unquote
 import traceback
-
+import config
 
 # 创建类似的QueueManager:
 class QueueManager(BaseManager):
@@ -20,10 +19,10 @@ QueueManager.register('get_task_queue')
 QueueManager.register('get_result_queue')
 
 # 连接到服务器，也就是运行taskmanager.py的机器:
-server_addr = '172.17.32.220'
-print('Connect to server %s...' % server_addr)
+
+print('Connect to server %s...' % config.server_addr)
 # 端口和验证码注意保持与taskmanager.py设置的完全一致:
-m = QueueManager(address=(server_addr, 5000), authkey='abc'.encode('utf-8'))
+m = QueueManager(address=(config.server_addr, 5001), authkey='abc'.encode('utf-8'))
 # 从网络连接:
 m.connect()
 # 获取Queue的对象:
@@ -46,13 +45,22 @@ def get_ip():
     except socket.error:
         return "127.0.0.1"
 
+for i in ['data', 'log']:
+    if not os.path.exists(i):
+        try:
+            os.mkdir(i)
+        except:
+            print("mkdir %s failed,exit..." % i)
+            sys.exit(1)
 
+# 获取本机ip
 workerip = get_ip()
-result_file = "html%s.txt" % workerip
-tag_file = "tag%s.txt" % workerip
-log_file = "log%s.txt" % workerip
-fw = codecs.open(result_file, 'a', 'utf-8')
-tag_fw = codecs.open(tag_file, 'a', 'utf-8')
+# 获取当前日期
+dt = time.strftime('%Y-%m-%d', time.localtime(time.time()))
+
+html_file = "data/html%s-%s.txt" % (dt, workerip)
+log_file = "log/log%s.txt" % workerip
+fw = codecs.open(html_file, 'a', 'utf-8')
 log_fw = codecs.open(log_file, 'a', 'utf-8')
 
 while True:
@@ -75,8 +83,11 @@ while True:
                 if href.startswith('/item') and not href.endswith('fr=navbar') and not href.endswith('force=1'):
                     word = unquote(href.replace('/item/', '').replace('#viewPageContent', ''))
                     relate_words.append(word)
-        print(len(relate_words))
+        # print(len(relate_words))
+        for w in relate_words:
+            result.put(w)
 
+        '''
         taglist = []
         for tag in content.select('span[class="taglist"]'):
             for ele in tag.stripped_strings:
@@ -86,14 +97,13 @@ while True:
         tag_fw.write(','.join(taglist))
         tag_fw.write('\n')
         tag_fw.flush()
-
-        for w in relate_words:
-            result.put(w)
+        '''
 
     except queue.Empty:
         print('task queue is empty.')
         time.sleep(10)
     except:
+        log_fw.write("bad word:" + uword + "\n")
         traceback.print_exc(file=log_fw)
 # 处理结束:
 print('worker exit.')
