@@ -70,6 +70,7 @@ while True:
     #每天生成一个文件
     newdt = time.strftime('%Y-%m-%d',time.localtime(time.time()))
     if newdt != dt:
+        dt = newdt
         seed_fw.close()
         seed_file = "data/seed%s-%s.txt" %(dt,workerip)
         seed_fw = codecs.open(seed_file, 'a', 'utf-8')
