@@ -1,5 +1,7 @@
 # -*- coding:utf-8 -*-
 
+#从某些动态页面动态的获取种子
+
 import time, sys, queue,os
 from multiprocessing.managers import BaseManager
 from bs4 import BeautifulSoup
@@ -30,10 +32,6 @@ task = m.get_task_queue()
 result = m.get_result_queue()
 # 从task队列取任务,并把结果写入result队列:
 
-base_url = "http://baike.baidu.com/item/"
-result_file = 'html'
-
-
 def get_ip():
     import socket
     try:
@@ -45,7 +43,7 @@ def get_ip():
     except socket.error:
         return "127.0.0.1"
 
-for i in ['data', 'log']:
+for i in ['seed-data', 'log']:
     if not os.path.exists(i):
         try:
             os.mkdir(i)
@@ -59,63 +57,55 @@ workerip = get_ip()
 dt = time.strftime('%Y-%m-%d', time.localtime(time.time()))
 
 inc = 0
-html_file = "data/html%s-%s_%d.txt" % (dt, workerip,inc/1000)
-log_file = "log/log%s.txt" % workerip
-fw = codecs.open(html_file, 'a', 'utf-8')
+seed_file = "seed-data/seed%s-%s_%d.txt" % (dt, workerip,inc/1000)
+log_file = "log/seedlog%s.txt" % workerip
+fw = codecs.open(seed_file, 'a', 'utf-8')
 log_fw = codecs.open(log_file, 'a', 'utf-8')
 
+url = "http://baike.baidu.com"
+url1 = "https://baike.baidu.com"
+
+filterList = [url, url1, '/item/', '#viewPageContent', '#hotspotmining']
 while True:
     # 每天生成一个文件
     inc += 1
-    if inc % 1000 == 0:
+    if inc % 10001 == 0:
         newdt = time.strftime('%Y-%m-%d', time.localtime(time.time()))
         if newdt != dt:
             inc = 0
             dt = newdt
         fw.close()
-        html_file = "data/html%s-%s_%d.txt" % (dt, workerip, inc/1000)
-        fw = codecs.open(html_file, 'a', 'utf-8')
+        seed_file = "seed-data/seed%s-%s_%d.txt" % (dt, workerip, inc/1000)
+        fw = codecs.open(seed_file, 'a', 'utf-8')
 
     try:
-        uword = task.get(timeout=1)
-        print('run task word=%s...' % uword)
-        url = base_url + quote(uword.encode('utf-8'))
-
         response = requests.get(url)
         res_text = response.text.encode(response.encoding)
-        fw.write(uword + '\x01')
-        fw.write(res_text.decode('utf-8').replace('\r', '').replace('\n', ''))
-        fw.write('\n')
-
         content = BeautifulSoup(res_text, 'lxml')
-        relate_words = []
+
+        relate_words = set()
         for a in content.find_all('a'):
             if 'href' in a.attrs:
                 href = a.attrs['href']
-                if href.startswith('/item') and not href.endswith('fr=navbar') and not href.endswith('force=1'):
-                    word = unquote(href.replace('/item/', '').replace('#viewPageContent', ''))
-                    relate_words.append(word)
+                if href.find('/item') > -1 and not href.endswith('fr=navbar') and \
+                        not href.endswith('force=1') and \
+                        href.find('/mall/item?id=') == -1:
+
+                    for fstr in filterList:
+                        href = href.replace(fstr, '')
+                    word = unquote(href)
+                    relate_words.add(word)
         # print(len(relate_words))
         for w in relate_words:
             result.put(w)
 
-        '''
-        taglist = []
-        for tag in content.select('span[class="taglist"]'):
-            for ele in tag.stripped_strings:
-                taglist.append(ele)
-
-        tag_fw.write(uword + '\t')
-        tag_fw.write(','.join(taglist))
-        tag_fw.write('\n')
-        tag_fw.flush()
-        '''
-
+        fw.write("\n".join(relate_words) + "\n")
+        fw.flush()
     except queue.Empty:
         print('task queue is empty.')
         time.sleep(10)
     except:
-        log_fw.write("bad word:" + uword + "\n")
         traceback.print_exc(file=log_fw)
+    time.sleep(300)
 # 处理结束:
 print('worker exit.')
